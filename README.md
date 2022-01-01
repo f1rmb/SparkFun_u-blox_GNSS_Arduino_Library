@@ -1,4 +1,7 @@
 # SparkFun u-blox Arduino GNSS Library
+---
+## NOTE: This is a modified version which adds incomplete support for NEO-6M modules. **I have NO plan** to complete the support for the Neo-6 or Neo-7.
+---
 
 <table class="table table-hover table-striped table-bordered">
   <tr align="center">
