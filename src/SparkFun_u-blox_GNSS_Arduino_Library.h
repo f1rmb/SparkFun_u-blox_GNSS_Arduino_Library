@@ -370,6 +370,7 @@ const uint8_t UBX_NAV_TIMEUTC = 0x21;	//UTC Time Solution
 const uint8_t UBX_NAV_VELECEF = 0x11;	//Velocity Solution in ECEF
 const uint8_t UBX_NAV_VELNED = 0x12;	//Velocity Solution in NED
 const uint8_t UBX_NAV_AOPSTATUS = 0x60; //AssistNow Autonomous status
+const uint8_t UBX_NAV_SOL = 0x06;       //Navigation Solution Information
 
 //Class: RXM
 //The following are used to configure the RXM UBX messages (receiver manager messages). Descriptions from UBX messages overview (ZED_F9P Interface Description Document page 36)
@@ -575,6 +576,13 @@ typedef struct
 	bool moduleQueried;
 } moduleSWVersion_t;
 
+typedef struct
+{
+        uint8_t len;
+        uint8_t versionString[255];
+        bool moduleQueried;
+} moduleReceiverVersion_t;
+
 const uint16_t DAYS_SINCE_MONTH[4][16] = 
 {
     {   0,   0,  31,  60,  91, 121, 152, 182, 213, 244, 274, 305, 335, 335, 335, 335 },
@@ -582,6 +590,18 @@ const uint16_t DAYS_SINCE_MONTH[4][16] =
     {   0,   0,  31,  59,  90, 120, 151, 181, 212, 243, 273, 304, 334, 334, 334, 334 },
     {   0,   0,  31,  59,  90, 120, 151, 181, 212, 243, 273, 304, 334, 334, 334, 334 },
 };
+
+
+enum SFE_UBLOX_GNSS_TYPE
+{
+    GNSS_TYPE_NEO6M_6 = 0,
+    GNSS_TYPE_NEO6M_7,
+    GNSS_TYPE_ZED,
+    GNSS_TYPE_OTHER // M8 and friends (default)
+};
+
+
+#define GNSS_IS_NEO6 ((_gnssType == GNSS_TYPE_NEO6M_6) || (_gnssType == GNSS_TYPE_NEO6M_7))
 
 class SFE_UBLOX_GNSS
 {
@@ -608,6 +628,9 @@ public:
 	bool begin(SPIClass &spiPort, uint8_t csPin, uint32_t spiSpeed, uint16_t maxWait = defaultMaxWait, bool assumeSuccess = false);
 
 	void end(void); //Stop all automatic message processing. Free all used RAM
+
+	void setGNSSType(SFE_UBLOX_GNSS_TYPE type);
+	SFE_UBLOX_GNSS_TYPE getGNSSType();
 
 	void setI2CpollingWait(uint8_t newPollingWait_ms); // Allow the user to change the I2C polling wait if required
 	void setSPIpollingWait(uint8_t newPollingWait_ms); // Allow the user to change the SPI polling wait if required
@@ -817,6 +840,12 @@ public:
 	bool getProtocolVersion(uint16_t maxWait = defaultMaxWait);		//Queries module, loads low/high bytes
 	moduleSWVersion_t *moduleSWVersion = NULL; // Pointer to struct. RAM will be allocated for this if/when necessary
 
+	bool getReceiverVersionString(uint8_t *buf, uint8_t &len, uint16_t maxWait = defaultMaxWait);
+	bool getReceiverVersion(uint16_t maxWait = defaultMaxWait);
+	moduleReceiverVersion_t *moduleReceiverVersion = NULL; // Pointer to struct. RAM will be allocated for this if/when necessary
+
+	SFE_UBLOX_GNSS_TYPE getModuleType(uint16_t maxWait = defaultMaxWait);
+
 	//Support for geofences
 	bool addGeofence(int32_t latitude, int32_t longitude, uint32_t radius, byte confidence = 0, byte pinPolarity = 0, byte pin = 0, uint16_t maxWait = defaultMaxWait); // Add a new geofence
 	bool clearGeofences(uint16_t maxWait = defaultMaxWait); //Clears all geofences
@@ -937,6 +966,29 @@ public:
 	void logNAVATT(bool enabled = true); // Log data to file buffer
 
 	bool getPVT(uint16_t maxWait = defaultMaxWait);	//Query module for latest group of datums and load global vars: lat, long, alt, speed, SIV, accuracies, etc. If autoPVT is disabled, performs an explicit poll and waits, if enabled does not block. Returns true if new PVT is available.
+	//
+	// -=-=-=-=-=- BEGIN NEO 6M Support -=-=-=-=-=-
+	//
+        bool getSOL(uint16_t maxWait = defaultMaxWait);
+        bool setAutoSOL(bool enabled, uint16_t maxWait = defaultMaxWait); //Enable/disable automatic SOL reports at the navigation frequency
+        bool setAutoSOL(bool enabled, bool implicitUpdate, uint16_t maxWait = defaultMaxWait); //Enable/disable automatic SOL reports at the navigation frequency, with implicitUpdate == false accessing stale data will not issue parsing of data in the rxbuffer of your interface, instead you have to call checkUblox when you want to perform an update
+        bool setAutoSOLrate(uint8_t rate, bool implicitUpdate = true, uint16_t maxWait = defaultMaxWait); //Set the rate for automatic SOL reports
+        void flushSOL();
+
+        bool getTIMEUTC(uint16_t maxWait = defaultMaxWait);
+        bool setAutoTIMEUTC(bool enabled, uint16_t maxWait = defaultMaxWait); //Enable/disable automatic TIMEUTC reports at the navigation frequency
+        bool setAutoTIMEUTC(bool enabled, bool implicitUpdate, uint16_t maxWait = defaultMaxWait); //Enable/disable automatic TIMEUTC reports at the navigation frequency, with implicitUpdate == false accessing stale data will not issue parsing of data in the rxbuffer of your interface, instead you have to call checkUblox when you want to perform an update
+        bool setAutoTIMEUTCrate(uint8_t rate, bool implicitUpdate = true, uint16_t maxWait = defaultMaxWait); //Set the rate for automatic TIMEUTC reports
+        void flushTIMEUTC();
+
+        bool getPOSLLH(uint16_t maxWait = defaultMaxWait);
+        bool setAutoPOSLLH(bool enabled, uint16_t maxWait = defaultMaxWait); //Enable/disable automatic POSLLH reports at the navigation frequency
+        bool setAutoPOSLLH(bool enabled, bool implicitUpdate, uint16_t maxWait = defaultMaxWait); //Enable/disable automatic POSLLH reports at the navigation frequency, with implicitUpdate == false accessing stale data will not issue parsing of data in the rxbuffer of your interface, instead you have to call checkUblox when you want to perform an update
+        bool setAutoPOSLLHrate(uint8_t rate, bool implicitUpdate, uint16_t maxWait); //Set the rate for automatic POSLLH reports
+        void flushPOSLLH();
+	//
+        // -=-=-=-=-=- END NEO 6M Support -=-=-=-=-=-
+	//
 	bool setAutoPVT(bool enabled, uint16_t maxWait = defaultMaxWait); //Enable/disable automatic PVT reports at the navigation frequency
 	bool setAutoPVT(bool enabled, bool implicitUpdate, uint16_t maxWait = defaultMaxWait); //Enable/disable automatic PVT reports at the navigation frequency, with implicitUpdate == false accessing stale data will not issue parsing of data in the rxbuffer of your interface, instead you have to call checkUblox when you want to perform an update
 	bool setAutoPVTrate(uint8_t rate, bool implicitUpdate = true, uint16_t maxWait = defaultMaxWait); //Set the rate for automatic PVT reports
@@ -1349,6 +1401,11 @@ public:
 	UBX_MGA_ACK_DATA0_t *packetUBXMGAACK = NULL; // Pointer to struct. RAM will be allocated for this if/when necessary
 	UBX_MGA_DBD_t *packetUBXMGADBD = NULL; // Pointer to struct. RAM will be allocated for this if/when necessary
 
+	// Neo-6M
+        UBX_NAV_SOL_t *packetUBXNAVSOL = NULL; // Pointer to struct. RAM will be allocated for this if/when necessary
+        UBX_NAV_TIMEUTC_t *packetUBXNAVTIMEUTC = NULL; // Pointer to struct. RAM will be allocated for this if/when necessary
+        UBX_NAV_POSLLH_t *packetUBXNAVPOSLLH = NULL; // Pointer to struct. RAM will be allocated for this if/when necessary
+
 	uint16_t rtcmFrameCounter = 0; //Tracks the type of incoming byte inside RTCM frame
 
 private:
@@ -1393,6 +1450,7 @@ private:
 
 	bool initGeofenceParams(); // Allocate RAM for currentGeofenceParams and initialize it
 	bool initModuleSWVersion(); // Allocate RAM for moduleSWVersion and initialize it
+	bool initModuleReceiverVersion(); // Allocate RAM for moduleSWVersion and initialize it
 
 	// The initPacket functions need to be private as they don't check if memory has already been allocated.
 	// Functions like setAutoNAVPOSECEF will check that memory has not been allocated before calling initPacket.
@@ -1426,6 +1484,10 @@ private:
 	bool initPacketUBXHNRPVT(); // Allocate RAM for packetUBXHNRPVT and initialize it
 	bool initPacketUBXMGAACK(); // Allocate RAM for packetUBXMGAACK and initialize it
 	bool initPacketUBXMGADBD(); // Allocate RAM for packetUBXMGADBD and initialize it
+
+	bool initPacketUBXNAVSOL(); // Allocate RAM for packetUBXMGADBD and initialize it
+	bool initPacketUBXNAVTIMEUTC(); // Allocate RAM for packetUBXMGADBD and initialize it
+	bool initPacketUBXNAVPOSLLH(); // Allocate RAM for packetUBXMGADBD and initialize it
 
 	//Variables
 	TwoWire *_i2cPort;				//The generic connection to user's chosen I2C hardware
@@ -1532,6 +1594,8 @@ private:
 	// .begin will return true if the assumeSuccess parameter is true and if _signsOfLife is true
 	// _signsOfLife is set to true when: a valid UBX message is seen; a valig NMEA header is seen.
 	bool _signsOfLife;
+
+	SFE_UBLOX_GNSS_TYPE _gnssType;
 
 };
 

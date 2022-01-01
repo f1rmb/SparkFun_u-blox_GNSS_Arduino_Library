@@ -496,12 +496,86 @@ typedef struct
 
 typedef struct
 {
-	ubxAutomaticFlags automaticFlags;
+  ubxAutomaticFlags automaticFlags;
   UBX_NAV_PVT_data_t data;
   UBX_NAV_PVT_moduleQueried_t moduleQueried;
   void (*callbackPointer)(UBX_NAV_PVT_data_t);
   UBX_NAV_PVT_data_t  *callbackData;
 } UBX_NAV_PVT_t;
+
+// UBX-NAV-SOL (0x01 0x06): Navigation Solution Information
+const uint16_t UBX_NAV_SOL_LEN = 52;
+
+typedef struct
+{
+  uint32_t iTOW; // GPS time of week of the navigation epoch: ms
+  int32_t fTOW; // Fractional Nanoseconds remainder of rounded ms above, range -500000 .. 500000
+  int16_t week; // GPS week (GPS time)
+  uint8_t gpsFix; // GPSfix Type, range 0..5
+  union
+  {
+    uint8_t all;
+    struct
+    {
+      uint8_t gpsFixOK : 1; // 1 = Fix within limits (e.g. DOP & ACC Masks)
+      uint8_t diffSoln : 1; // 1 = DGPS used
+      uint8_t WKNSET : 1; // 1 = Valid GPS week number
+      uint8_t TOWSET : 1; // 1 = Valid GPS time of week (iTOW & fTOW)
+    } bits;
+  } flags;
+  int32_t ecefX; // ECEF X coordinate: cm
+  int32_t ecefY; // ECEF Y coordinate: cm
+  int32_t ecefZ; // ECEF Z coordinate: cm
+  uint32_t pAcc; // 3D Position Accuracy Estimate: cm
+  int32_t ecefVX; // ECEF X velocity: cm/s
+  int32_t ecefVY; // ECEF Y velocity: cm/s
+  int32_t ecefVZ; // ECEF Z velocity: cm/s
+  uint32_t sAcc; // Speed accuracy estimate: cm/s
+  uint16_t pDOP; // Position DOP * 0.01
+  uint8_t reserved1;
+  uint8_t numSV; // Number of satellites used in Nav Solution
+  uint8_t reserved2[4];
+} UBX_NAV_SOL_data_t;
+
+typedef struct
+{
+  union
+  {
+    uint32_t all;
+    struct
+    {
+      uint32_t all : 1;
+
+      uint32_t iTOW : 1;
+      uint32_t fTOW : 1;
+      uint32_t week : 1;
+      uint32_t gpsFix : 1;
+
+      uint32_t gnssFixOK : 1;
+      uint32_t diffSoln : 1;
+      uint32_t WKNSET : 1;
+      uint32_t TOWSET : 1;
+
+      uint32_t ecefX : 1;
+      uint32_t ecefY : 1;
+      uint32_t ecefZ : 1;
+      uint32_t pAcc : 1;
+      uint32_t ecefVX : 1;
+      uint32_t ecefVY : 1;
+      uint32_t ecefVZ : 1;
+      uint32_t sAcc : 1;
+      uint32_t pDOP : 1;
+      uint32_t numSV : 1;
+    } bits;
+  }  moduleQueried;
+} UBX_NAV_SOL_moduleQueried_t;
+
+typedef struct
+{
+  ubxAutomaticFlags automaticFlags;
+  UBX_NAV_SOL_data_t data;
+  UBX_NAV_SOL_moduleQueried_t moduleQueried;
+} UBX_NAV_SOL_t;
 
 // UBX-NAV-ODO (0x01 0x09): Odometer solution
 const uint16_t UBX_NAV_ODO_LEN = 20;
@@ -761,12 +835,12 @@ typedef struct
   uint32_t iTOW; // GPS time of week of the navigation epoch: ms
   uint32_t tAcc; // Time accuracy estimate (UTC): ns
   int32_t nano; // Fraction of second, range -1e9 .. 1e9 (UTC): ns
-  uint16_t year; // Year (UTC)
+  uint16_t year; // Year 1999..2099 (UTC)
   uint8_t month; // Month, range 1..12 (UTC)
   uint8_t day; // Day of month, range 1..31 (UTC)
   uint8_t hour; // Hour of day, range 0..23 (UTC)
   uint8_t min; // Minute of hour, range 0..59 (UTC)
-  uint8_t sec; // Seconds of minute, range 0..60 (UTC)
+  uint8_t sec; // Seconds of minute, range 0..59 (UTC)
   union
   {
     uint8_t all;
@@ -776,7 +850,7 @@ typedef struct
       uint8_t validWKN : 1; // 1 = Valid Week Number
       uint8_t validUTC : 1; // 1 = Valid UTC Time
       uint8_t reserved : 1;
-      uint8_t utcStandard : 4; // UTC standard identifier
+      uint8_t utcStandard : 4; // UTC standard identifier (missing with NEO-6M)
     } bits;
   } valid;
 } UBX_NAV_TIMEUTC_data_t;
